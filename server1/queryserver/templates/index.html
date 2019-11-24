@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Distributed IR</title>
+	<script type="text/javascript" src="{{ url_for('static', filename='jquery-3.2.1.min.js') }}"></script>
+	<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='bootstrap.min.css') }}">
+	<style type="text/css">
+		@font-face
+		{
+		    font-family: myAvenir;
+		    src: url("{{ url_for('static', filename='avenir-next-regular.ttf') }}") format("truetype");
+		}
+		body
+		{
+			font-family: "myAvenir";
+		}
+	</style>
+	<script type="text/javascript">
+		String.prototype.replaceAll = function(search, replacement) {
+		    var target = this;
+		    return target.split(search).join(replacement);
+		};
+
+		function listen()
+		{
+			$("#voiceResult").html("Listening...")
+
+			$.get("/voicequery", function(result){
+				queryString = result["queryString"];
+
+				$("#voiceResult").html("Your voice query is: " + queryString);
+				wrapper(queryString, 5);
+			});
+		}
+
+		function wrapper(q, k)
+		{
+			if(!q)
+			{
+				q = $("#queryString").val();
+			}
+
+			if(!k)
+			{
+				k = parseInt($("#k").val());
+			}
+
+			doQuery(q, k);
+		}
+
+		function doQuery(q, k)
+		{
+			$("#loading").attr("style", "display: block;");
+			
+			if(q=="")
+			{
+				$("#queryString").attr("placeholder", "Please type your query first");
+				$("#qp").attr("class", "has-error");
+				return;
+			}
+
+			if(!k)
+			{
+				// $("#k").attr("placeholder", "Please type your query first");
+				// $("#kp").attr("class", "has-error");
+				// return;
+				k = 3;
+			}
+
+			$("#finalDocs").empty();
+			$("#individualDocs").empty();
+
+			data = {"query": q, "k": k};
+
+			/*$.post("/query", {json_string:JSON.stringify(data)}, function(result){
+				alert(typeof(result));
+			});*/
+
+			$.ajax({
+				type: "POST",
+				url: "/query",
+				data: JSON.stringify(data),
+				contentType: "application/json",
+				dataType: "json",
+				success: function(result) {
+					$("#loading").attr("style", "display: none;");
+					console.log(result);
+					finalResult = result["finalResult"];
+					individualResults = result["individualResults"];
+
+					var fd = document.getElementById("finalDocs");
+
+					var p = document.createElement("p");
+					p.style = "font-weight: bold; font-size: 16pt;";
+					p.innerHTML = "Final documents retrieved (after result merging)";
+					fd.appendChild(p);
+
+					var tbl = document.createElement("table");
+					tbl.className = "table table-hover";
+					var tr, td, th, a, s;
+
+					var thead = document.createElement("thead");
+					tr = document.createElement("tr");
+
+					th = document.createElement("th");
+					th.innerHTML = "Server";
+					tr.appendChild(th);
+
+					th = document.createElement("th");
+					th.innerHTML = "Document";
+					tr.appendChild(th);
+
+					th = document.createElement("th");
+					th.innerHTML = "Similarity Score";
+					tr.appendChild(th);
+
+					thead.appendChild(tr);
+					tbl.appendChild(thead);
+
+					var tbody = document.createElement("tbody");
+					
+					for(i=0; i<finalResult.length; i++)
+					{
+						tr = document.createElement("tr");
+
+						td = document.createElement("td");
+						td.innerHTML = finalResult[i][0];
+						tr.appendChild(td);
+
+						td = document.createElement("td");
+						a = document.createElement("a");
+						s = finalResult[i][1].replaceAll("/", "+");
+						s = s.replaceAll("\\\\", "+");
+						s = s.replaceAll("\\", "+");
+						a.href = "http://" + finalResult[i][0] + "/getdocument/" + s;
+						a.target = "_blank";
+						a.innerHTML = finalResult[i][1];
+						td.appendChild(a);
+						tr.appendChild(td);
+
+						td = document.createElement("td");
+						td.innerHTML = finalResult[i][2];
+						tr.appendChild(td);
+
+						tbody.appendChild(tr);
+					}
+					tbl.appendChild(tbody);
+					fd.appendChild(tbl);
+
+					var ind = document.getElementById("individualDocs");
+					for(var server in individualResults)
+					{
+						serverResult = individualResults[server];
+
+						var p = document.createElement("p");
+						p.style = "font-weight: bold; font-size: 16pt;";
+						p.innerHTML = "Documents retrieved from server " + server.toString();
+						ind.appendChild(p);
+
+						var tbl = document.createElement("table");
+						tbl.className = "table table-hover";
+						var tr, td, th;
+
+						var thead = document.createElement("thead");
+						tr = document.createElement("tr");
+
+						th = document.createElement("th");
+						th.innerHTML = "Document";
+						tr.appendChild(th);
+
+						th = document.createElement("th");
+						th.innerHTML = "Similarity Score";
+						tr.appendChild(th);
+
+						thead.appendChild(tr);
+						tbl.appendChild(thead);
+
+						var tbody = document.createElement("tbody");
+						
+						for(i=0; i<serverResult.length; i++)
+						{
+							tr = document.createElement("tr");
+
+							td = document.createElement("td");
+							td.innerHTML = serverResult[i][0];
+							tr.appendChild(td);
+
+							td = document.createElement("td");
+							td.innerHTML = serverResult[i][1];
+							tr.appendChild(td);
+
+							tbody.appendChild(tr);
+						}
+
+						tbl.appendChild(tbody);
+						ind.appendChild(tbl);
+
+						br = document.createElement("br");
+						ind.appendChild(br);
+						br = document.createElement("br");
+						ind.appendChild(br);
+					}
+				}
+			});
+		}
+	</script>
+</head>
+<body style="margin: 10px;">
+	<h1 style="align-content: center;">Distributed IR System</h1>
+	<br>
+	<p id="qp">
+		<input type="text" id="queryString" placeholder="Type your query here" style="width: 400pt" class="form-control">
+	</p>
+	<br>
+	<p id="kp">
+		<input type="number" id="k" class="form-control" style="width: 50pt">
+	</p>
+	<br><br>
+	<button onclick="listen()" class="btn" style="background-color: white;">
+		<img src="{{ url_for('static', filename='mic.png') }}" style="width: 50px;">
+	</button>
+	<span id="voiceResult"></span>
+	<br><br>
+	<button onclick="wrapper(null, null)" id="queryButton" class="btn btn-primary">QUERY</button>
+	<br><br><br>
+	<div id="loading" style="display: none;">
+		<span>Loading... </span>
+		<img src="{{ url_for('static', filename='loading.gif') }}" style="width: 50px;">
+	</div>
+	<div id="finalDocs">
+		
+	</div>
+	<br><br><br>
+	<div id="individualDocs">
+		
+	</div>
+</body>
+</html>
